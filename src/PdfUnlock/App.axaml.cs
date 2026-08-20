@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using PdfUnlock.Services;
 using PdfUnlock.ViewModels;
 using PdfUnlock.Views;
 
@@ -20,7 +21,9 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var model = new MainViewModel();
+            var store = new SettingsStore();
+            var settings = store.Load();
+            var model = new MainViewModel(store, settings);
 
             // A shell invocation arrives as argv: the operating system hands us the files the
             // user right-clicked. They preload the batch and wait, rather than running
@@ -32,7 +35,19 @@ public partial class App : Application
             if (pdfs.Count > 0)
                 model.AddFilesCommand.Execute(pdfs);
 
-            desktop.MainWindow = new MainWindow { DataContext = model };
+            var window = new MainWindow
+            {
+                DataContext = model,
+                Width = settings.WindowWidth,
+                Height = settings.WindowHeight,
+            };
+            window.Closing += (_, _) =>
+            {
+                settings.WindowWidth = window.Width;
+                settings.WindowHeight = window.Height;
+                store.Save(settings);
+            };
+            desktop.MainWindow = window;
         }
 
         base.OnFrameworkInitializationCompleted();

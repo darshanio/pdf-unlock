@@ -22,6 +22,9 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly QpdfResolver _resolver = new();
     private CancellationTokenSource? _runCancellation;
 
+    public SettingsStore SettingsStore { get; }
+    public AppSettings Settings { get; }
+
     public ObservableCollection<DecryptJob> Jobs { get; } = [];
 
     [ObservableProperty] private DecryptJob? _selectedJob;
@@ -38,8 +41,14 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _progressText = string.Empty;
     [ObservableProperty] private double _progressValue;
 
-    public MainViewModel()
+    public MainViewModel() : this(new SettingsStore()) { }
+
+    public MainViewModel(SettingsStore store) : this(store, store.Load()) { }
+
+    public MainViewModel(SettingsStore store, AppSettings settings)
     {
+        SettingsStore = store;
+        Settings = settings;
         Jobs.CollectionChanged += OnJobsChanged;
         _ = ResolveQpdfAsync();
     }
@@ -78,7 +87,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private async Task ResolveQpdfAsync()
     {
-        var (resolved, tooOld) = await _resolver.ResolveAsync(userChosenPath: null);
+        var (resolved, tooOld) = await _resolver.ResolveAsync(Settings.QpdfPath);
         Qpdf = resolved;
         IsQpdfUsable = resolved is not null;
 
@@ -146,6 +155,8 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void Cancel() => _runCancellation?.Cancel();
 
+    /// <summary>Called when the settings window closes: the chosen qpdf path may have
+    /// changed, and resolution happens once per launch otherwise.</summary>
     [RelayCommand]
     private Task RedetectQpdf() => ResolveQpdfAsync();
 

@@ -23,6 +23,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         ChooseFilesButton.Click += OnChooseFiles;
+        SettingsButton.Click += OnOpenSettings;
         RevealDefaultToggle.IsCheckedChanged += OnRevealToggled;
 
         // Drag and drop is how people will actually use this, so it is wired from the start.
@@ -49,6 +50,23 @@ public partial class MainWindow : Window
 
         if (paths.Count > 0)
             Model?.AddFilesCommand.Execute(paths);
+    }
+
+    private async void OnOpenSettings(object? sender, RoutedEventArgs e)
+    {
+        if (Model is null)
+            return;
+
+        var settings = new SettingsWindow
+        {
+            DataContext = new SettingsViewModel(Model.SettingsStore, Model.Settings, Model.IsRunning),
+        };
+        // Modal to the main window: a batch should not be edited underneath a
+        // half-changed setting.
+        await settings.ShowDialog(this);
+
+        Model.SettingsStore.Save(Model.Settings);
+        Model.RedetectQpdfCommand.Execute(null);
     }
 
     private void OnRevealToggled(object? sender, RoutedEventArgs e) =>

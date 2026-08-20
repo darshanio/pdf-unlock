@@ -119,10 +119,12 @@ Working and verified against real encrypted PDFs:
 - [x] Drag-and-drop, and file arguments on launch
 - [x] Correct rendering in both light and dark system themes
 
-Not built yet:
+- [x] Settings, persisted, with the qpdf status panel
+
+Not built yet — one spec each in [`docs/features/`](docs/features):
 
 - [ ] Saved per-folder passwords, in the OS keychain
-- [ ] Settings screens, including the qpdf status panel and dependency licences
+- [ ] Dependency licences screen
 - [ ] Bundled qpdf binaries
 - [ ] Installers, and context-menu integration on both platforms
 - [ ] Update notification
@@ -134,6 +136,8 @@ Not built yet:
   is, the difference between an open password and a permissions password, and what
   *remaining* means. Worth reading before the code.
 - [`docs/adr/`](docs/adr) — decisions that would otherwise look arbitrary later.
+- [`docs/features/`](docs/features) — a specification per unbuilt feature, with the
+  build order and what "done" means for each.
 
 ## Licence
 
