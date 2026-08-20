@@ -1,0 +1,151 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PdfUnlock.ViewModels"
+        xmlns:m="using:PdfUnlock.Models"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
+        x:Class="PdfUnlock.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/pdf-unlock.ico"
+        Width="900" Height="600" MinWidth="700" MinHeight="420"
+        Title="PDF Unlock"
+        DragDrop.AllowDrop="True">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Padding="12,10" BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+                <Button Grid.Column="0" Name="ChooseFilesButton" Content="Choose files…" />
+                <Button Grid.Column="1" Margin="8,0,0,0" Content="Clear"
+                        Command="{Binding ClearCommand}" IsEnabled="{Binding HasJobs}" />
+                <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding QpdfStatus}" />
+            </Grid>
+        </Border>
+
+        <!-- qpdf banner: a strip, not a wall. The batch stays usable while it shows. -->
+        <Border Grid.Row="1" Background="{DynamicResource WarningSurfaceBrush}" Padding="12,8"
+                IsVisible="{Binding !IsQpdfUsable}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}"
+                           Text="qpdf is required to decrypt. Install it, or point PDF Unlock at an existing copy." />
+                <Button Grid.Column="1" Content="Re-detect" Command="{Binding RedetectQpdfCommand}" />
+            </Grid>
+        </Border>
+
+        <!-- Default password for the whole batch -->
+        <Border Grid.Row="2" Padding="12,10" BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Text="Password for all files" />
+                <TextBox Grid.Column="1" Name="DefaultPasswordBox" PasswordChar="•"
+                         Text="{Binding DefaultPassword}" PlaceholderText="Leave empty if the PDFs open without one" />
+                <ToggleButton Grid.Column="2" Name="RevealDefaultToggle" Margin="8,0,0,0" Content="Show" />
+            </Grid>
+        </Border>
+
+        <!-- List + detail panel -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,4,320">
+            <Panel Grid.Column="0">
+                <ListBox Name="JobList" ItemsSource="{Binding Jobs}" SelectedItem="{Binding SelectedJob}"
+                         Background="Transparent">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="m:DecryptJob">
+                            <Grid ColumnDefinitions="20,*,Auto" ToolTip.Tip="{Binding InputPath}">
+                                <TextBlock Grid.Column="0" Text="{Binding StatusGlyph}" FontWeight="Bold"
+                                           Foreground="{Binding StatusBrush}" VerticalAlignment="Center" />
+                                <StackPanel Grid.Column="1" Margin="6,0">
+                                    <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding FolderName}" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock Grid.Column="2" Text="{Binding StateText}" FontSize="11"
+                                           Foreground="{Binding StatusBrush}" VerticalAlignment="Center" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!-- Empty state doubles as the drop target -->
+                <Border IsVisible="{Binding !HasJobs}" IsHitTestVisible="False">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="6">
+                        <TextBlock Text="Drop PDFs here" FontSize="16" Foreground="{DynamicResource MutedTextBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="or use “Choose files…” above" FontSize="12" Foreground="{DynamicResource FaintTextBrush}"
+                                   HorizontalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </Panel>
+
+            <Border Grid.Column="2" BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="1,0,0,0" Padding="14">
+                <ScrollViewer>
+                    <StackPanel Spacing="10" IsVisible="{Binding SelectedJob, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <TextBlock Text="{Binding SelectedJob.FileName}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding SelectedJob.DirectoryPath}" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <TextBlock Text="Writes to" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding SelectedJob.OutputFileName}" FontSize="12" TextWrapping="Wrap" />
+
+                        <TextBlock Text="Password for this file" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" Margin="0,6,0,0" />
+                        <TextBox PasswordChar="•" Text="{Binding SelectedJob.PasswordOverride}"
+                                 PlaceholderText="Leave empty to use the shared one" />
+                        <TextBlock Text="{Binding SelectedPasswordSourceText}" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <!-- Collision decision, resolved before the run rather than mid-run -->
+                        <Border IsVisible="{Binding SelectedJob.NeedsCollisionDecision}"
+                                Background="{DynamicResource WarningSurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,6,0,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource WarningTextBrush}"
+                                           Text="A decrypted copy already exists. What should happen?" />
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Button Content="Overwrite" Command="{Binding ResolveCollisionCommand}"
+                                            CommandParameter="Overwrite" />
+                                    <Button Content="Skip" Command="{Binding ResolveCollisionCommand}"
+                                            CommandParameter="Skip" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="{Binding SelectedJob.StateText}" FontSize="12" Margin="0,6,0,0"
+                                   Foreground="{Binding SelectedJob.StatusBrush}" />
+                        <TextBlock Text="{Binding SelectedJob.Message}" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <Button Content="Remove from list" Command="{Binding RemoveSelectedCommand}"
+                                Margin="0,10,0,0" HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- Run bar -->
+        <Border Grid.Row="4" Padding="12,10" BorderBrush="{DynamicResource SeparatorBrush}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontSize="12"
+                           Foreground="{DynamicResource WarningTextBrush}" TextWrapping="Wrap" Text="{Binding CollisionWarning}" />
+                <ProgressBar Grid.Row="1" Grid.Column="0" Margin="0,8,12,0" Height="6"
+                             Value="{Binding ProgressValue}" IsVisible="{Binding IsRunning}" />
+
+                <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0"
+                           FontSize="12" Foreground="{DynamicResource MutedTextBrush}" Text="{Binding ProgressText}" />
+
+                <Button Grid.Row="0" Grid.Column="2" Content="{Binding DecryptRemainingLabel}"
+                        Command="{Binding DecryptRemainingCommand}" IsEnabled="{Binding CanRun}"
+                        IsVisible="{Binding !IsRunning}" />
+                <Button Grid.Row="0" Grid.Column="3" Margin="8,0,0,0" Classes="accent"
+                        Content="{Binding DecryptAllLabel}" Command="{Binding DecryptAllCommand}"
+                        IsEnabled="{Binding CanRun}" IsVisible="{Binding !IsRunning}" />
+                <Button Grid.Row="0" Grid.Column="3" Margin="8,0,0,0" Content="Cancel"
+                        Command="{Binding CancelCommand}" IsVisible="{Binding IsRunning}" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

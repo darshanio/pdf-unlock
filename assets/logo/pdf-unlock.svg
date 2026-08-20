@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img"
+     aria-label="PDF Unlock: a document page with an unlocked padlock">
+  <defs>
+    <linearGradient id="pgBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#334155"/><stop offset="1" stop-color="#0B1220"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#pgBg)"/>
+  <path d="M132 108 h150 l98 98 v198 a26 26 0 0 1 -26 26 H158 a26 26 0 0 1 -26 -26 V134
+           a26 26 0 0 1 26 -26 z" fill="#fff"/>
+  <path d="M282 108 l98 98 h-72 a26 26 0 0 1 -26 -26 z" fill="#C3CEDC"/>
+  <g transform="translate(183 242)">
+    <rect x="0" y="58" width="146" height="104" rx="22" fill="#3B82F6"/>
+    <!-- Free end stops well clear of the body: at a 22px stroke the cap alone closes a
+         narrow gap, which is what made earlier attempts read as locked. -->
+    <path d="M116 58 V32 a34 34 0 0 0 -68 0" fill="none" stroke="#3B82F6"
+          stroke-width="22" stroke-linecap="round"/>
+    <g stroke="#fff" stroke-width="16" stroke-linecap="round">
+      <path d="M34 100 H112"/><path d="M34 132 H86"/>
+    </g>
+  </g>
+</svg>

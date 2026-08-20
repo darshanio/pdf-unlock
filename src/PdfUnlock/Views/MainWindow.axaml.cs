@@ -1,0 +1,79 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Platform.Storage;
+using PdfUnlock.ViewModels;
+
+namespace PdfUnlock.Views;
+
+public partial class MainWindow : Window
+{
+    private static readonly FilePickerFileType PdfFileType = new("PDF documents")
+    {
+        Patterns = ["*.pdf"],
+        AppleUniformTypeIdentifiers = ["com.adobe.pdf"],
+        MimeTypes = ["application/pdf"],
+    };
+
+    public MainWindow()
+    {
+        InitializeComponent();
+
+        ChooseFilesButton.Click += OnChooseFiles;
+        RevealDefaultToggle.IsCheckedChanged += OnRevealToggled;
+
+        // Drag and drop is how people will actually use this, so it is wired from the start.
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+    }
+
+    private MainViewModel? Model => DataContext as MainViewModel;
+
+    private async void OnChooseFiles(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Choose PDFs to decrypt",
+            AllowMultiple = true,
+            FileTypeFilter = [PdfFileType],
+        });
+
+        var paths = files
+            .Select(file => file.TryGetLocalPath())
+            .Where(path => !string.IsNullOrEmpty(path))
+            .Cast<string>()
+            .ToList();
+
+        if (paths.Count > 0)
+            Model?.AddFilesCommand.Execute(paths);
+    }
+
+    private void OnRevealToggled(object? sender, RoutedEventArgs e) =>
+        DefaultPasswordBox.PasswordChar = RevealDefaultToggle.IsChecked == true ? '\0' : '•';
+
+    private static void OnDragOver(object? sender, DragEventArgs e) =>
+        e.DragEffects = e.DataTransfer.TryGetFiles() is not null
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+
+    private void OnDrop(object? sender, DragEventArgs e)
+    {
+        var items = e.DataTransfer.TryGetFiles();
+        if (items is null)
+            return;
+
+        var paths = new List<string>();
+        foreach (var item in items)
+        {
+            var path = item.TryGetLocalPath();
+            if (!string.IsNullOrEmpty(path) && path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                paths.Add(path);
+        }
+
+        if (paths.Count > 0)
+            Model?.AddFilesCommand.Execute(paths);
+    }
+}
