@@ -1,7 +1,7 @@
 # 0003 — Bundled qpdf
 
-**Status:** not started
-**Depends on:** [0001](done/0001-settings-shell.md)
+**Status:** partly done — app side verified 2026-08-20, CI unverified
+**Depends on:** [0001](0001-settings-shell.md)
 **Blocks:** [0004](0004-macos-app-bundle.md), [0007](0007-ci-and-releases.md)
 
 ## Why
@@ -9,7 +9,7 @@
 Resolution already prefers a system qpdf, but its last candidate — the bundled copy —
 does not exist yet, so a machine without qpdf cannot use the app at all. qpdf publishes
 no official macOS binary, so for many Mac users there is no easy route to a system
-installation. See [ADR 0001](../adr/0001-qpdf-resolution-strategy.md).
+installation. See [ADR 0001](../../adr/0001-qpdf-resolution-strategy.md).
 
 ## Scope
 
@@ -54,3 +54,40 @@ Version reported in Settings matches `qpdf --version` for that binary.
 
 Automatic installation via `brew` or `winget`. It was only load-bearing while there was
 no bundle; with one, it is optional polish.
+
+## Outcome
+
+Application side is built and verified. CI side is written but has never run.
+
+**Verified here:**
+
+- With `PATH` cleared and conventional locations empty, the bundled copy wins, reports
+  itself as *"using the copy bundled with PDF Unlock"*, and decrypts a real encrypted PDF
+  (AC3, AC6).
+- A system installation outranks the bundle when both exist (AC6).
+- A chosen location is validated before it is stored. `/bin/ls` is refused with "that
+  program does not report itself as qpdf"; a stub reporting version 9.1.1 is refused with
+  the version requirement *and the reason for it*; a non-existent path is refused. In every
+  case the previously resolved installation stays in force (AC7).
+- A wrapper script rather than a binary is accepted, as the edge case requires.
+- The pinned version lives in `qpdf-version.txt`, so a bump touches no code (AC8).
+- A missing bundle leaves the app working — it falls back to a system qpdf or its setup
+  banner rather than failing to start.
+
+**Not verified, and not verifiable on this machine:**
+
+- The static macOS build (AC1, AC4, AC5). It needs cmake and a CI runner; `scripts/verify-qpdf-macos.sh`
+  enforces "system libraries only, and signed" as a build step so a bad bundle fails the
+  build rather than reaching a user.
+- The Windows archive extraction path.
+
+**What the attempt taught us.** Copying Homebrew's `qpdf` into the bundle produced a binary
+that will not start at all: it references `@rpath/libqpdf.30.dylib`. This is precisely the
+failure AC4 exists to prevent, and it is now confirmed rather than assumed. Resolution
+handled it correctly — the unusable candidate was rejected and the next one tried.
+
+The dyld error also revealed a **fallback if static linking proves troublesome in CI**: the
+rpath is resolved relative to the binary, at `../lib/libqpdf.30.dylib`. Shipping
+`qpdf/bin/qpdf` alongside `qpdf/lib/*.dylib` would therefore work without any
+`install_name_tool` surgery. Static remains preferable — two files to sign instead of six —
+but this is a known, cheap escape hatch.

@@ -16,7 +16,6 @@ Dependencies, not preference, determine the order:
 
 | # | Feature | Depends on | Why here |
 |---|---------|-----------|----------|
-| [0003](0003-bundled-qpdf.md) | Bundled qpdf | 0001 | Until this lands, a machine without qpdf cannot use the app |
 | [0005](0005-licences-screen.md) | Licences screen | 0001 | Small, and an obligation rather than a feature |
 | [0004](0004-macos-app-bundle.md) | macOS bundle and Quick Action | 0003 | Needs something to bundle |
 | [0008](0008-windows-installer.md) | Windows installer and context menu | 0003 | Same |
@@ -27,6 +26,7 @@ Dependencies, not preference, determine the order:
 
 - [0001 — Settings shell](done/0001-settings-shell.md)
 - [0002 — Folder password rules](done/0002-folder-password-rules.md)
+- [0003 — Bundled qpdf](done/0003-bundled-qpdf.md) — app side done; the CI build has not run yet
 
 Already built and verified: qpdf resolution, the batch and job model, decryption,
 collision handling, cancellation, drag-and-drop and launch arguments. See the README.

@@ -91,7 +91,7 @@
 
                     <Border Background="{DynamicResource WarningSurfaceBrush}" CornerRadius="6" Padding="12"
                             IsVisible="{Binding !IsQpdfUsable}">
-                        <TextBlock Text="{Binding QpdfOrigin}" TextWrapping="Wrap" FontSize="12"
+                        <TextBlock Text="{Binding QpdfOriginText}" TextWrapping="Wrap" FontSize="12"
                                    Foreground="{DynamicResource WarningTextBrush}" />
                     </Border>
 
@@ -101,7 +101,7 @@
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="✗" FontSize="18" FontWeight="Bold"
                                    Foreground="#E5534B" Margin="0,0,10,0" IsVisible="{Binding !IsQpdfUsable}" />
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding QpdfStatus}" FontWeight="Medium" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding QpdfOrigin}" FontSize="12"
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding QpdfOriginText}" FontSize="12"
                                    Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"
                                    IsVisible="{Binding IsQpdfUsable}" />
                         <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding QpdfPathText}" FontSize="11"
@@ -109,10 +109,19 @@
                                    Margin="0,6,0,0" />
                     </Grid>
 
+                    <TextBlock IsVisible="{Binding IsUsingBundledQpdf}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="This is the copy shipped with PDF Unlock. Installing qpdf yourself — with Homebrew or winget — means you get its updates on its own schedule instead of waiting for ours." />
+
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Name="ChooseQpdfButton" Content="Change…" />
                         <Button Content="Re-detect" Command="{Binding RedetectQpdfCommand}" />
+                        <Button Content="Use automatic" Command="{Binding UseAutomaticQpdfCommand}"
+                                IsVisible="{Binding HasExplicitChoice}" />
                     </StackPanel>
+
+                    <TextBlock Text="{Binding QpdfNotice}" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{DynamicResource WarningTextBrush}" />
 
                     <TextBlock IsVisible="{Binding IsBatchRunning}" FontSize="11" TextWrapping="Wrap"
                                Foreground="{DynamicResource WarningTextBrush}"

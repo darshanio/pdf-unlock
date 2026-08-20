@@ -1,7 +1,7 @@
 # 0007 — CI and releases
 
 **Status:** not started
-**Depends on:** [0003](0003-bundled-qpdf.md), [0004](0004-macos-app-bundle.md),
+**Depends on:** [0003](done/0003-bundled-qpdf.md), [0004](0004-macos-app-bundle.md),
 [0008](0008-windows-installer.md)
 **Blocks:** [0006](0006-update-notification.md)
 
@@ -17,7 +17,7 @@ unreproducible and platform-specific bugs go unnoticed.
 2. `release.yml` runs on a pushed tag matching `v*`. Merges to `main` do **not** publish
    a release — a typo fix should not consume a version number.
 3. The release workflow downloads the pinned qpdf assets from
-   [0003](0003-bundled-qpdf.md) rather than building qpdf, keeping releases fast.
+   [0003](done/0003-bundled-qpdf.md) rather than building qpdf, keeping releases fast.
 4. Artifacts: a `.dmg` for macOS (ad-hoc signed) and an Inno Setup installer for
    Windows, both attached to the GitHub release.
 5. Release notes are auto-generated from merged pull request titles, grouped by label

@@ -28,9 +28,8 @@ public partial class SettingsWindow : Window
         if (string.IsNullOrEmpty(path) || Model is null)
             return;
 
-        // Record the choice, then re-resolve: a path that is too old or is not qpdf is
-        // rejected by resolution, and the previous answer stands.
-        Model.Settings.QpdfPath = path;
-        Model.RedetectQpdfCommand.Execute(null);
+        // Validated before it is stored: an unusable choice is reported and discarded,
+        // leaving the previous resolution in force.
+        await Model.ChooseQpdfAsync(path);
     }
 }

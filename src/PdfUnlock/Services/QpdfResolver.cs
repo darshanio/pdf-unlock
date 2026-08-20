@@ -18,6 +18,17 @@ public sealed class QpdfResolver
 {
     private static readonly Regex VersionPattern = new(@"qpdf version (\d+)\.(\S+)", RegexOptions.IgnoreCase);
 
+    private readonly IReadOnlyList<string>? _conventionalOverride;
+
+    public QpdfResolver() { }
+
+    /// <summary>
+    /// Overrides the conventional install locations. Exists so that the bundled-copy path
+    /// can be exercised without a machine that happens to have no qpdf installed.
+    /// </summary>
+    public QpdfResolver(IReadOnlyList<string> conventionalLocations) =>
+        _conventionalOverride = conventionalLocations;
+
     private static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
     private static string ExecutableName => IsWindows ? "qpdf.exe" : "qpdf";
 
@@ -43,7 +54,30 @@ public sealed class QpdfResolver
         return (null, tooOld);
     }
 
-    private static IEnumerable<(string Path, QpdfOrigin Origin)> EnumerateCandidates(string? userChosenPath)
+    /// <summary>
+    /// Examines one specific path the user chose, reporting *why* it is unusable rather
+    /// than quietly falling through to another candidate. A rejected choice must leave the
+    /// previous resolution standing.
+    /// </summary>
+    public async Task<(QpdfInstallation? Found, string? Problem)> InspectAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return (null, "No location given.");
+        if (!File.Exists(path))
+            return (null, "There is nothing at that location.");
+
+        var installation = await ProbeAsync(path, QpdfOrigin.UserChosen);
+        if (installation is null)
+            return (null, "That program does not report itself as qpdf.");
+        if (!installation.IsUsable)
+            return (null, $"That is qpdf {installation.VersionText}. " +
+                          $"Version {QpdfInstallation.MinimumVersion} or newer is required, because " +
+                          "older versions cannot take a password without exposing it to other programs.");
+
+        return (installation, null);
+    }
+
+    private IEnumerable<(string Path, QpdfOrigin Origin)> EnumerateCandidates(string? userChosenPath)
     {
         if (!string.IsNullOrWhiteSpace(userChosenPath))
             yield return (userChosenPath, QpdfOrigin.UserChosen);
@@ -51,7 +85,10 @@ public sealed class QpdfResolver
         foreach (var path in FromSearchPath())
             yield return (path, QpdfOrigin.SearchPath);
 
-        foreach (var path in FromConventionalLocations())
+        var conventional = _conventionalOverride is not null
+            ? _conventionalOverride.Where(File.Exists)
+            : FromConventionalLocations();
+        foreach (var path in conventional)
             yield return (path, QpdfOrigin.ConventionalLocation);
 
         var bundled = BundledPath();

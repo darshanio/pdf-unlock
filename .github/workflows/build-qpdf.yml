@@ -1,0 +1,120 @@
+name: Build qpdf binaries
+
+# Run by hand when the pinned qpdf version changes. Deliberately not part of the release
+# workflow: building qpdf on every release would add ten minutes to each one, and the
+# binaries change far less often than the app does.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: qpdf version to build (e.g. 12.4.0)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14      # Apple Silicon
+            rid: osx-arm64
+          - runner: macos-13      # Intel
+            rid: osx-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: brew install cmake pkg-config
+
+      - name: Fetch qpdf source
+        run: |
+          curl -fsSL -o qpdf.tar.gz \
+            "https://github.com/qpdf/qpdf/releases/download/v${{ inputs.version }}/qpdf-${{ inputs.version }}.tar.gz"
+          tar -xzf qpdf.tar.gz
+
+      # Static libraries only, and the dependencies compiled in, so the result carries no
+      # reference to anything under /opt/homebrew.
+      - name: Configure and build
+        working-directory: qpdf-${{ inputs.version }}
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_STATIC_LIBS=ON \
+            -DREQUIRE_CRYPTO_NATIVE=ON \
+            -DUSE_IMPLICIT_CRYPTO=OFF \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+          cmake --build build --parallel
+
+      - name: Sign ad-hoc
+        run: codesign --force --sign - "qpdf-${{ inputs.version }}/build/qpdf/qpdf"
+
+      # A bundle that links Homebrew's libqpdf works only on this runner. Verified here,
+      # not discovered by a user.
+      - name: Verify self-contained and signed
+        run: ./scripts/verify-qpdf-macos.sh "qpdf-${{ inputs.version }}/build/qpdf/qpdf"
+
+      - name: Package
+        run: |
+          mkdir -p out
+          tar -czf "out/qpdf-${{ inputs.version }}-${{ matrix.rid }}.tar.gz" \
+            -C "qpdf-${{ inputs.version }}/build/qpdf" qpdf
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qpdf-${{ matrix.rid }}
+          path: out/*.tar.gz
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Windows needs no build: qpdf publishes an official MSVC binary, which is a
+      # supported artifact rather than something we assembled ourselves.
+      - name: Download official Windows build
+        shell: bash
+        run: |
+          curl -fsSL -o qpdf-msvc.zip \
+            "https://github.com/qpdf/qpdf/releases/download/v${{ inputs.version }}/qpdf-${{ inputs.version }}-msvc64.zip"
+          unzip -q qpdf-msvc.zip -d extracted
+          mkdir -p staged out
+          find extracted -name 'qpdf.exe' -exec cp {} staged/ \;
+          find extracted -name '*.dll' -exec cp {} staged/ \;
+          test -f staged/qpdf.exe || { echo "qpdf.exe not found in the archive" >&2; exit 1; }
+          tar -czf "out/qpdf-${{ inputs.version }}-win-x64.tar.gz" -C staged .
+
+      - name: Check it runs
+        shell: bash
+        run: ./staged/qpdf.exe --version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qpdf-win-x64
+          path: out/*.tar.gz
+
+  publish:
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+
+      # Published under a qpdf-specific tag so the application's own release history is
+      # not polluted by dependency updates.
+      - name: Publish as a qpdf tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "qpdf-${{ inputs.version }}" \
+            --repo "${{ github.repository }}" \
+            --title "qpdf ${{ inputs.version }} binaries" \
+            --notes "Static qpdf ${{ inputs.version }} for macOS (arm64, x64) and the official MSVC build for Windows. Consumed by scripts/fetch-qpdf.sh." \
+            assets/*/*.tar.gz || \
+          gh release upload "qpdf-${{ inputs.version }}" assets/*/*.tar.gz \
+            --repo "${{ github.repository }}" --clobber

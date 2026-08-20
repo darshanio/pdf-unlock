@@ -67,6 +67,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty] private string _ruleNotice = string.Empty;
 
+    [ObservableProperty] private bool _hasExplicitChoice;
+
     /// <summary>A qpdf path changed mid-run applies to the next run, not the current one.
     /// The UI says so rather than silently doing the surprising thing.</summary>
     public bool IsBatchRunning { get; }
@@ -86,8 +88,16 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty] private string _qpdfStatus = "Looking for qpdf…";
     [ObservableProperty] private string _qpdfPathText = string.Empty;
-    [ObservableProperty] private string _qpdfOrigin = string.Empty;
+    [ObservableProperty] private string _qpdfOriginText = string.Empty;
     [ObservableProperty] private bool _isQpdfUsable;
+
+    /// <summary>Why a chosen location was refused. Empty when there is nothing to say.</summary>
+    [ObservableProperty] private string _qpdfNotice = string.Empty;
+
+    /// <summary>True when the app is running on its own bundled copy rather than one the
+    /// user or their package manager installed — worth stating, since the bundle is by
+    /// construction the stalest qpdf in play.</summary>
+    [ObservableProperty] private bool _isUsingBundledQpdf;
 
     public bool IsGeneral => SelectedSection == SettingsSection.General && DetailPageTitle is null;
     public bool IsPasswords => SelectedSection == SettingsSection.Passwords && DetailPageTitle is null;
@@ -171,6 +181,36 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private Task RedetectQpdf() => RefreshQpdfAsync();
 
+    /// <summary>
+    /// Accepts a location only if it is actually a usable qpdf. A rejection is reported
+    /// and changes nothing: the previously resolved installation stays in force.
+    /// </summary>
+    public async Task<bool> ChooseQpdfAsync(string path)
+    {
+        var (found, problem) = await _resolver.InspectAsync(path);
+        if (found is null)
+        {
+            QpdfNotice = problem ?? "That location cannot be used.";
+            return false;
+        }
+
+        Settings.QpdfPath = path;
+        _store.Save(Settings);
+        QpdfNotice = string.Empty;
+        await RefreshQpdfAsync();
+        return true;
+    }
+
+    /// <summary>Returns to automatic resolution, discarding an explicit choice.</summary>
+    [RelayCommand]
+    private async Task UseAutomaticQpdf()
+    {
+        Settings.QpdfPath = null;
+        _store.Save(Settings);
+        QpdfNotice = string.Empty;
+        await RefreshQpdfAsync();
+    }
+
     private async Task RefreshQpdfAsync()
     {
         var (resolved, tooOld) = await _resolver.ResolveAsync(Settings.QpdfPath);
@@ -180,15 +220,20 @@ public sealed partial class SettingsViewModel : ViewModelBase
         {
             QpdfStatus = $"qpdf {resolved.VersionText}";
             QpdfPathText = resolved.ExecutablePath;
-            QpdfOrigin = resolved.OriginDescription;
+            QpdfOriginText = resolved.OriginDescription;
+            IsUsingBundledQpdf = resolved.Origin == Models.QpdfOrigin.Bundled;
+            HasExplicitChoice = Settings.QpdfPath is not null;
             return;
         }
+
+        IsUsingBundledQpdf = false;
+        HasExplicitChoice = Settings.QpdfPath is not null;
 
         QpdfPathText = string.Empty;
         QpdfStatus = tooOld.Count > 0
             ? $"Found qpdf {tooOld[0].VersionText}, which is too old"
             : "No usable qpdf found";
-        QpdfOrigin = tooOld.Count > 0
+        QpdfOriginText = tooOld.Count > 0
             ? $"Version {QpdfInstallation.MinimumVersion} or newer is required."
             : "Install qpdf, or choose its location below.";
     }

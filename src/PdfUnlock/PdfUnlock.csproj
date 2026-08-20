@@ -25,4 +25,16 @@
     </PackageReference>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
+
+  <!-- The bundled qpdf: fetched by pinned version, never committed. A build without it
+       still works, the app just falls back to a system qpdf or its setup banner. -->
+  <PropertyGroup>
+    <QpdfRid Condition="'$(QpdfRid)' == '' and '$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</QpdfRid>
+  </PropertyGroup>
+
+  <Target Name="FetchBundledQpdf" AfterTargets="Build" Condition="'$(QpdfRid)' != '' and '$(OS)' != 'Windows_NT'">
+    <Exec Command="&quot;$(MSBuildProjectDirectory)/../../scripts/fetch-qpdf.sh&quot; $(QpdfRid) &quot;$(OutDir)qpdf&quot;"
+          ContinueOnError="true" />
+  </Target>
+
 </Project>

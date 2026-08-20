@@ -1,7 +1,7 @@
 # 0008 — Windows installer and context menu
 
 **Status:** not started
-**Depends on:** [0003](0003-bundled-qpdf.md)
+**Depends on:** [0003](done/0003-bundled-qpdf.md)
 **Blocks:** [0007](0007-ci-and-releases.md)
 
 ## Why
