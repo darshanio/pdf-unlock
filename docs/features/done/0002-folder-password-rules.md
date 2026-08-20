@@ -1,6 +1,6 @@
 # 0002 — Folder password rules
 
-**Status:** not started
+**Status:** done — verified 2026-08-20
 **Depends on:** [0001](0001-settings-shell.md)
 **Blocks:** nothing
 
@@ -13,7 +13,7 @@ tedium the app exists to remove.
 ## Domain vocabulary
 
 Uses **Directory Password Rule**, **Password Store**, **Password Override**,
-**Default Password** as defined in [`CONTEXT.md`](../../CONTEXT.md). A rule keys on the
+**Default Password** as defined in [`CONTEXT.md`](../../../CONTEXT.md). A rule keys on the
 *name of the immediately containing folder*, case-insensitively, so it survives an
 enclosing year folder changing.
 
@@ -66,3 +66,30 @@ on success. Confirm disabling the store stops candidate accumulation.
 Password *templates* — deriving a per-file password from a formula. Explicitly rejected
 during design: it needs per-institution knowledge and placeholder sources that do not
 exist in a filename.
+
+## Outcome
+
+All ten criteria met, verified against the real macOS Keychain rather than a stub:
+metadata JSON confirmed to contain folder names and no password material; a password
+round-tripped through the keychain; case-insensitive name matching; conflict detection
+naming the existing rule's origin path; precedence Override → Rule → Default; a volume
+root rejected as too broad; deletion removing both metadata and secret; and rules
+surviving a reload from disk.
+
+Passwords reach the keychain over standard input, not as arguments — `security -w` with
+no value reads the secret from stdin (twice, since it asks to retype). Verified that the
+password does not appear in the process arguments.
+
+Two defects were found by verification rather than by reading the code:
+
+1. **A permissions-only PDF was being treated as proof that a password was correct.**
+   Such a file decrypts whatever password is supplied, so its success is no evidence at
+   all. It masked a genuine `WrongPassword` failure on a sibling file and suppressed the
+   whole folder's row. Decryption now reports whether the password was actually required
+   and used, and only such a success counts as proof.
+2. The prompt's outcome column read "failed" for a folder whose stored password was
+   already correct, because it was derived from "is there anything to save" rather than
+   from what happened. Outcome is now stated explicitly: worked, mixed, or failed.
+
+The Windows credential store is implemented but **unverified** — it has never run on
+Windows. That is the one part of this feature not to be trusted yet.

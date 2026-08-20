@@ -1,7 +1,7 @@
 # 0003 — Bundled qpdf
 
 **Status:** not started
-**Depends on:** [0001](0001-settings-shell.md)
+**Depends on:** [0001](done/0001-settings-shell.md)
 **Blocks:** [0004](0004-macos-app-bundle.md), [0007](0007-ci-and-releases.md)
 
 ## Why

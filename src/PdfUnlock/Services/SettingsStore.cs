@@ -26,6 +26,9 @@ public sealed class SettingsStore
 
     public string Path_ => _path;
 
+    /// <summary>Where per-user data lives; the folder-rule file shares it.</summary>
+    public string DataDirectory => _directory;
+
     private static string ResolveDirectory()
     {
         // .NET maps ApplicationData to ~/.config on macOS, which is not where a Mac user

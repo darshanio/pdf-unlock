@@ -45,6 +45,22 @@ public sealed partial class DecryptJob : ObservableObject
     /// <summary>Set only when this file's password differs from the batch default.</summary>
     [ObservableProperty] private string? _passwordOverride;
 
+    /// <summary>Password supplied by a matching folder rule, if any. Beaten by an
+    /// override, beats the batch default.</summary>
+    [ObservableProperty] private string? _rulePassword;
+
+    /// <summary>The folder name of the rule that supplied <see cref="RulePassword"/>,
+    /// shown so the user can see *why* a password appeared.</summary>
+    [ObservableProperty] private string? _ruleName;
+
+    /// <summary>True when more than one rule matched this folder name. Surfaced rather
+    /// than resolved silently.</summary>
+    [ObservableProperty] private bool _ruleIsAmbiguous;
+
+    /// <summary>Set when this job's success actually demonstrated the password was
+    /// correct. False for a permissions-only PDF, which opens regardless.</summary>
+    [ObservableProperty] private bool _passwordProven;
+
     [ObservableProperty] private bool _outputExists;
     [ObservableProperty] private CollisionChoice _collisionChoice = CollisionChoice.Undecided;
 
@@ -58,11 +74,16 @@ public sealed partial class DecryptJob : ObservableObject
 
     public bool IsRemaining => State != JobState.Decrypted;
 
+    // Precedence: an override is the user speaking about this exact file, so it wins; a
+    // rule is knowledge about this file's location, so it beats the batch-wide default.
     public string EffectivePassword(string batchDefault) =>
-        !string.IsNullOrEmpty(PasswordOverride) ? PasswordOverride : batchDefault;
+        !string.IsNullOrEmpty(PasswordOverride) ? PasswordOverride
+        : !string.IsNullOrEmpty(RulePassword) ? RulePassword
+        : batchDefault;
 
     public PasswordSource SourceOf(string batchDefault) =>
         !string.IsNullOrEmpty(PasswordOverride) ? PasswordSource.Override
+        : !string.IsNullOrEmpty(RulePassword) ? PasswordSource.FolderRule
         : !string.IsNullOrEmpty(batchDefault) ? PasswordSource.BatchDefault
         : PasswordSource.None;
 
@@ -73,6 +94,7 @@ public sealed partial class DecryptJob : ObservableObject
         State = JobState.Pending;
         Reason = FailureReason.None;
         Message = string.Empty;
+        PasswordProven = false;
     }
 
     public void Apply(DecryptOutcomeSnapshot outcome)
@@ -80,6 +102,7 @@ public sealed partial class DecryptJob : ObservableObject
         State = outcome.State;
         Reason = outcome.Reason;
         Message = outcome.Message;
+        PasswordProven = outcome.PasswordProven;
     }
 
     // Status glyph and colour are derived here rather than in XAML so that the meaning of a
@@ -138,4 +161,5 @@ public sealed partial class DecryptJob : ObservableObject
 }
 
 /// <summary>Decoupling record so the model does not depend on the service layer.</summary>
-public sealed record DecryptOutcomeSnapshot(JobState State, FailureReason Reason, string Message);
+public sealed record DecryptOutcomeSnapshot(
+    JobState State, FailureReason Reason, string Message, bool PasswordProven = false);

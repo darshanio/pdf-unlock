@@ -27,6 +27,12 @@ public partial class MainWindow : Window
         RevealDefaultToggle.IsCheckedChanged += OnRevealToggled;
 
         // Drag and drop is how people will actually use this, so it is wired from the start.
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is MainViewModel model)
+                model.RunFinished += OfferToSavePasswords;
+        };
+
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         AddHandler(DragDrop.DropEvent, OnDrop);
     }
@@ -59,14 +65,31 @@ public partial class MainWindow : Window
 
         var settings = new SettingsWindow
         {
-            DataContext = new SettingsViewModel(Model.SettingsStore, Model.Settings, Model.IsRunning),
+            DataContext = new SettingsViewModel(Model.SettingsStore, Model.Settings, Model.IsRunning, Model.Passwords),
         };
         // Modal to the main window: a batch should not be edited underneath a
         // half-changed setting.
         await settings.ShowDialog(this);
 
         Model.SettingsStore.Save(Model.Settings);
+        Model.ReapplyRules();
         Model.RedetectQpdfCommand.Execute(null);
+    }
+
+    /// <summary>Offers to remember the passwords a run proved correct. Shown only when
+    /// there is something worth offering.</summary>
+    public async void OfferToSavePasswords()
+    {
+        if (Model is null || Model.PendingSaves.Count == 0)
+            return;
+
+        var prompt = new SavePasswordsWindow
+        {
+            DataContext = new SavePasswordsViewModel(Model.Passwords, Model.PendingSaves),
+        };
+        await prompt.ShowDialog(this);
+        Model.PendingSaves.Clear();
+        Model.ReapplyRules();
     }
 
     private void OnRevealToggled(object? sender, RoutedEventArgs e) =>

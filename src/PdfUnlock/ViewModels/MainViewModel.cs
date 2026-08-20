@@ -24,6 +24,11 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public SettingsStore SettingsStore { get; }
     public AppSettings Settings { get; }
+    public PasswordStore Passwords { get; }
+
+    /// <summary>Passwords proven correct during the last run that are worth offering to
+    /// save. Consumed by the view, which shows the prompt.</summary>
+    public List<PasswordSaveCandidate> PendingSaves { get; } = [];
 
     public ObservableCollection<DecryptJob> Jobs { get; } = [];
 
@@ -41,14 +46,22 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _progressText = string.Empty;
     [ObservableProperty] private double _progressValue;
 
+    /// <summary>Raised when a run ends, so the view can offer to remember passwords.</summary>
+    public event System.Action? RunFinished;
+
     public MainViewModel() : this(new SettingsStore()) { }
 
     public MainViewModel(SettingsStore store) : this(store, store.Load()) { }
 
     public MainViewModel(SettingsStore store, AppSettings settings)
+        : this(store, settings, new PasswordStore(store.DataDirectory, SecretStoreFactory.ForThisPlatform())) { }
+
+    public MainViewModel(SettingsStore store, AppSettings settings, PasswordStore passwords)
     {
         SettingsStore = store;
         Settings = settings;
+        Passwords = passwords;
+        Passwords.Enabled = settings.PasswordStoreEnabled;
         Jobs.CollectionChanged += OnJobsChanged;
         _ = ResolveQpdfAsync();
     }
@@ -79,7 +92,9 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 PasswordSource.Override => "Using this file's own password.",
                 PasswordSource.BatchDefault => "Using the password for all files.",
-                PasswordSource.FolderRule => $"Using the saved password for folder “{SelectedJob.FolderName}”.",
+                PasswordSource.FolderRule => SelectedJob.RuleIsAmbiguous
+                    ? $"Using a saved password for “{SelectedJob.RuleName}” — more than one rule matches that folder name."
+                    : $"Using the saved password for folder “{SelectedJob.RuleName}”.",
                 _ => "No password — fine for a PDF that opens without one.",
             };
         }
@@ -112,11 +127,41 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             var job = new DecryptJob(path);
             job.CheckForCollision();
+            ApplyRule(job);
+            Passwords.NoteFolder(job.FolderName, job.DirectoryPath);
             job.PropertyChanged += OnJobPropertyChanged;
             Jobs.Add(job);
         }
 
         SelectedJob ??= Jobs.FirstOrDefault();
+    }
+
+    /// <summary>Attaches the password a folder rule supplies, along with the rule's name
+    /// so the user can see where it came from.</summary>
+    private void ApplyRule(DecryptJob job)
+    {
+        var rule = Passwords.Match(job.FolderName);
+        if (rule is null || !Passwords.TryGetPassword(rule, out var password))
+        {
+            job.RulePassword = null;
+            job.RuleName = null;
+            job.RuleIsAmbiguous = false;
+            return;
+        }
+
+        job.RulePassword = password;
+        job.RuleName = rule.FolderName;
+        job.RuleIsAmbiguous = Passwords.IsAmbiguous(job.FolderName);
+    }
+
+    /// <summary>Re-reads rules for every job. Called after the settings window closes,
+    /// where rules may have been added, changed or deleted.</summary>
+    public void ReapplyRules()
+    {
+        Passwords.Enabled = Settings.PasswordStoreEnabled;
+        foreach (var job in Jobs)
+            ApplyRule(job);
+        OnPropertyChanged(nameof(SelectedPasswordSourceText));
     }
 
     [RelayCommand]
@@ -190,7 +235,7 @@ public sealed partial class MainViewModel : ViewModelBase
                     overwriteExisting: job.CollisionChoice == CollisionChoice.Overwrite,
                     _runCancellation.Token);
 
-                job.Apply(new DecryptOutcomeSnapshot(outcome.State, outcome.Reason, outcome.Message));
+                job.Apply(new DecryptOutcomeSnapshot(outcome.State, outcome.Reason, outcome.Message, outcome.PasswordProven));
                 job.CheckForCollision();
                 ProgressValue = (index + 1) * 100.0 / jobs.Count;
 
@@ -214,10 +259,73 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         finally
         {
+            CollectPendingSaves(jobs);
             IsRunning = false;
             _runCancellation?.Dispose();
             _runCancellation = null;
             RefreshCounts();
+            // The view owns windows; the view model only says that a run finished.
+            RunFinished?.Invoke();
+        }
+    }
+
+    /// <summary>
+    /// Gathers the passwords worth offering to save: only those that actually worked, and
+    /// only where they differ from what is already stored. A password that just failed is
+    /// never offered — storing a known-bad secret is worse than storing nothing.
+    /// </summary>
+    private void CollectPendingSaves(List<DecryptJob> jobs)
+    {
+        PendingSaves.Clear();
+        if (!Passwords.Enabled || !Passwords.HasSecureStore)
+            return;
+
+        foreach (var group in jobs.GroupBy(job => job.FolderName, StringComparer.OrdinalIgnoreCase))
+        {
+            var path = group.First().DirectoryPath;
+            var failed = group.Count(job =>
+                job.State == JobState.Failed && job.Reason == FailureReason.WrongPassword);
+
+            // Only a job that actually needed a password proves one. A permissions-only
+            // PDF decrypts whatever it is given, so its success is not evidence.
+            var proven = group
+                .Where(job => job.State == JobState.Decrypted && job.PasswordProven)
+                .Select(job => job.EffectivePassword(DefaultPassword))
+                .FirstOrDefault(password => !string.IsNullOrEmpty(password));
+
+            if (string.IsNullOrEmpty(proven))
+            {
+                // The user asked to see which passwords worked and which did not, so a
+                // folder where nothing worked still gets a row — just not a savable one.
+                if (failed > 0)
+                    PendingSaves.Add(new PasswordSaveCandidate(
+                        group.Key, path, string.Empty, false,
+                        failed == 1 ? "1 file rejected the password" : $"{failed} files rejected the password",
+                        "failed"));
+                continue;
+            }
+
+            var existing = Passwords.Match(group.Key);
+            var alreadyStored = existing is not null
+                                && Passwords.TryGetPassword(existing, out var stored)
+                                && stored == proven;
+
+            if (alreadyStored)
+            {
+                // Nothing to save, but a mixed result is still worth showing.
+                if (failed > 0)
+                    PendingSaves.Add(new PasswordSaveCandidate(
+                        group.Key, path, string.Empty, false,
+                        $"saved password already correct, but {failed} file(s) rejected it",
+                        "mixed"));
+                continue;
+            }
+
+            var note = existing is null ? "new" : "replaces the saved password";
+            if (failed > 0)
+                note += $" — {failed} file(s) still rejected it";
+            PendingSaves.Add(new PasswordSaveCandidate(
+                group.Key, path, proven, true, note, failed > 0 ? "mixed" : "worked"));
         }
     }
 

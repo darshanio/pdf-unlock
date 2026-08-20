@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PdfUnlock.ViewModels"
+        xmlns:m="using:PdfUnlock.Models"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="480"
@@ -74,9 +75,12 @@
                     <TextBlock TextWrapping="Wrap" FontSize="12"
                                Foreground="{DynamicResource MutedTextBrush}"
                                Text="Files kept in a folder of the same name reuse its password, so statements filed by year keep working as the year changes. Passwords are held in the system keychain, never in a settings file. Folders are only remembered while this is switched on." />
+                    <TextBlock Text="{Binding SecureStoreNotice}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource FaintTextBrush}" />
                     <Button Content="Saved folders…" Command="{Binding OpenDetailCommand}"
-                            CommandParameter="Saved folders" HorizontalAlignment="Left"
-                            IsEnabled="{Binding PasswordStoreEnabled}" />
+                            CommandParameter="Saved folders" HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding RuleNotice}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{DynamicResource WarningTextBrush}" />
                 </StackPanel>
             </ScrollViewer>
 
@@ -134,9 +138,63 @@
                         <TextBlock Text="{Binding DetailPageTitle}" FontSize="16" FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock Grid.Row="1" Margin="22,18" TextWrapping="Wrap" FontSize="12"
-                               Foreground="{DynamicResource MutedTextBrush}"
-                               Text="Saved folders and their passwords will be listed here, with an example showing how folder matching works. Arrives with feature 0002." />
+                    <ScrollViewer Grid.Row="1" Padding="22,14">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="{Binding MatchingExample}" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource MutedTextBrush}" />
+
+                            <StackPanel Spacing="6" IsVisible="{Binding HasRules}">
+                                <TextBlock Text="Saved" FontWeight="Medium" FontSize="12" />
+                                <ItemsControl ItemsSource="{Binding Rules}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="m:DirectoryPasswordRule">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="0,3"
+                                                  ToolTip.Tip="{Binding OriginPath}">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding FolderName}" />
+                                                    <TextBlock Text="{Binding OriginPath}" FontSize="10"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource FaintTextBrush}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Forget" FontSize="11"
+                                                        Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).DeleteRuleCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <TextBlock IsVisible="{Binding !HasRules}" FontSize="12" TextWrapping="Wrap"
+                                       Foreground="{DynamicResource MutedTextBrush}"
+                                       Text="Nothing saved yet. After a run, PDF Unlock offers to remember the passwords that worked." />
+
+                            <StackPanel Spacing="6" IsVisible="{Binding HasCandidates}">
+                                <TextBlock Text="Folders seen recently" FontWeight="Medium" FontSize="12" />
+                                <ItemsControl ItemsSource="{Binding Candidates}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="m:FolderCandidate">
+                                            <Grid ColumnDefinitions="*,Auto" Margin="0,3"
+                                                  ToolTip.Tip="{Binding Path}">
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="{Binding FolderName}" />
+                                                    <TextBlock Text="{Binding Path}" FontSize="10"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{DynamicResource FaintTextBrush}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Dismiss" FontSize="11"
+                                                        Command="{Binding $parent[Window].((vm:SettingsViewModel)DataContext).DismissCandidateCommand}"
+                                                        CommandParameter="{Binding}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <Button Content="Forget all saved passwords" Command="{Binding ForgetAllCommand}"
+                                    IsVisible="{Binding HasRules}" HorizontalAlignment="Left" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </ScrollViewer>
                 </Grid>
             </Border>
         </Panel>

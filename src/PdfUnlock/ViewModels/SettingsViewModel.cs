@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -24,18 +25,47 @@ public sealed partial class SettingsViewModel : ViewModelBase
     private readonly SettingsStore _store;
     private readonly QpdfResolver _resolver = new();
 
-    public SettingsViewModel(SettingsStore store, AppSettings settings, bool isBatchRunning)
+    public SettingsViewModel(SettingsStore store, AppSettings settings, bool isBatchRunning,
+                             PasswordStore? passwords = null)
     {
         _store = store;
+        Passwords = passwords ?? new PasswordStore(store.DataDirectory, SecretStoreFactory.ForThisPlatform());
+        Passwords.Enabled = settings.PasswordStoreEnabled;
         Settings = settings;
         IsBatchRunning = isBatchRunning;
         _contextMenuRunsImmediately = settings.ContextMenuBehaviour == ContextMenuBehaviour.RunImmediately;
         _checkForUpdates = settings.CheckForUpdates;
         _passwordStoreEnabled = settings.PasswordStoreEnabled;
+        RefreshRules();
         _ = RefreshQpdfAsync();
     }
 
     public AppSettings Settings { get; }
+
+    public PasswordStore Passwords { get; }
+
+    public ObservableCollection<DirectoryPasswordRule> Rules { get; } = [];
+    public ObservableCollection<FolderCandidate> Candidates { get; } = [];
+
+    public bool HasSecureStore => Passwords.HasSecureStore;
+
+    public string SecureStoreNotice => Passwords.HasSecureStore
+        ? $"Passwords are kept in {Passwords.SecureStoreName}."
+        : $"Saving is unavailable: {Passwords.SecureStoreName}. Passwords will not be written anywhere.";
+
+    public bool HasRules => Rules.Count > 0;
+    public bool HasCandidates => Candidates.Count > 0;
+
+    /// <summary>Shown under the folder field so the matching rule is demonstrated rather
+    /// than described.</summary>
+    public string MatchingExample =>
+        Rules.Count > 0
+            ? $"A rule for “{Rules[0].FolderName}” matches /Documents/2025/{Rules[0].FolderName}/ and " +
+              $"/Documents/2026/{Rules[0].FolderName}/ alike — the year changes, the folder name does not."
+            : "A rule for “A Bank” matches /Documents/2025/A Bank/ and /Documents/2026/A Bank/ alike — " +
+              "the year changes, the folder name does not.";
+
+    [ObservableProperty] private string _ruleNotice = string.Empty;
 
     /// <summary>A qpdf path changed mid-run applies to the next run, not the current one.
     /// The UI says so rather than silently doing the surprising thing.</summary>
@@ -76,6 +106,67 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void CloseDetail() => DetailPageTitle = null;
+
+    [RelayCommand]
+    private void DeleteRule(DirectoryPasswordRule rule)
+    {
+        Passwords.Delete(rule);
+        RuleNotice = $"Forgot the password for “{rule.FolderName}”.";
+        RefreshRules();
+    }
+
+    [RelayCommand]
+    private void ForgetAll()
+    {
+        Passwords.DeleteAll();
+        RuleNotice = "All saved passwords forgotten.";
+        RefreshRules();
+    }
+
+    [RelayCommand]
+    private void DismissCandidate(FolderCandidate candidate)
+    {
+        Passwords.ForgetCandidate(candidate);
+        RefreshRules();
+    }
+
+    public void RefreshRules()
+    {
+        Rules.Clear();
+        foreach (var rule in Passwords.Rules)
+            Rules.Add(rule);
+        Candidates.Clear();
+        foreach (var candidate in Passwords.Candidates)
+            Candidates.Add(candidate);
+        OnPropertyChanged(nameof(HasRules));
+        OnPropertyChanged(nameof(HasCandidates));
+        OnPropertyChanged(nameof(MatchingExample));
+    }
+
+    /// <summary>
+    /// Adds a rule for a folder. A second rule for a folder name that already exists
+    /// elsewhere is questioned here, at creation time, naming where the existing one came
+    /// from — that is the only moment the user can answer whether it is the same source.
+    /// </summary>
+    public DirectoryPasswordRule? ConflictFor(string folderName, string path) =>
+        Passwords.ConflictingRule(folderName, path);
+
+    public SaveRuleResult AddRule(string folderName, string path, string password)
+    {
+        var result = Passwords.Save(folderName, path, password);
+        RuleNotice = result switch
+        {
+            SaveRuleResult.Saved => $"Saved the password for “{folderName}”.",
+            SaveRuleResult.Updated => $"Updated the password for “{folderName}”.",
+            SaveRuleResult.SecretRejected => $"{Passwords.SecureStoreName} refused to store it.",
+            SaveRuleResult.NoSecureStore => "No secure store is available on this system.",
+            SaveRuleResult.StoreDisabled => "Switch on remembering passwords first.",
+            SaveRuleResult.InvalidFolderName => "That folder is too broad to use as a rule.",
+            _ => string.Empty,
+        };
+        RefreshRules();
+        return result;
+    }
 
     [RelayCommand]
     private Task RedetectQpdf() => RefreshQpdfAsync();
@@ -119,7 +210,11 @@ public sealed partial class SettingsViewModel : ViewModelBase
     partial void OnPasswordStoreEnabledChanged(bool value)
     {
         Settings.PasswordStoreEnabled = value;
+        Passwords.Enabled = value;
         _store.Save(Settings);
+        // Disabling is not deletion: existing rules stay, unused, until the user says
+        // otherwise.
+        RuleNotice = value ? string.Empty : "Saved passwords are kept but will not be used.";
     }
 
     partial void OnSelectedSectionChanged(SettingsSection value) => RaiseSectionFlags();

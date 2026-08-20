@@ -1,7 +1,7 @@
 # 0005 — Licences screen
 
 **Status:** not started
-**Depends on:** [0001](0001-settings-shell.md)
+**Depends on:** [0001](done/0001-settings-shell.md)
 **Blocks:** nothing
 
 ## Why

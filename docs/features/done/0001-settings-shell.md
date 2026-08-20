@@ -2,8 +2,8 @@
 
 **Status:** done — verified 2026-08-20
 **Depends on:** nothing
-**Blocks:** [0002](0002-folder-password-rules.md), [0003](0003-bundled-qpdf.md),
-[0006](0006-update-notification.md)
+**Blocks:** [0002](../0002-folder-password-rules.md), [0003](../0003-bundled-qpdf.md),
+[0006](../0006-update-notification.md)
 
 ## Why
 
@@ -29,10 +29,10 @@ which needs a back affordance.
 4. **General** holds the context-menu behaviour choice: *Preload and wait* (default) or
    *Run immediately*. The Run-immediately option states in words what it will do, since
    it writes files without further confirmation.
-5. **qpdf** holds the read-only status block from [0003](0003-bundled-qpdf.md): a clear
+5. **qpdf** holds the read-only status block from [0003](../0003-bundled-qpdf.md): a clear
    ✓/✗ mark, the resolved path, the detected version, which mechanism found it, and
    **Change…** / **Re-detect** buttons.
-6. **Licences** holds the list from [0005](0005-licences-screen.md).
+6. **Licences** holds the list from [0005](../0005-licences-screen.md).
 7. Settings persist to a JSON file in the platform's per-user application data
    directory, written atomically — a crash mid-write must not produce a file that fails
    to parse on next launch. Secrets never go in this file.

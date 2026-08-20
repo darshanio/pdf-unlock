@@ -1,7 +1,7 @@
 # 0006 — Update notification
 
 **Status:** not started
-**Depends on:** [0001](0001-settings-shell.md), [0007](0007-ci-and-releases.md)
+**Depends on:** [0001](done/0001-settings-shell.md), [0007](0007-ci-and-releases.md)
 **Blocks:** nothing
 
 ## Why

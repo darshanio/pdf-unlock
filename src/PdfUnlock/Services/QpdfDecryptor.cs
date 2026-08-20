@@ -7,7 +7,11 @@ using PdfUnlock.Models;
 
 namespace PdfUnlock.Services;
 
-public sealed record DecryptOutcome(JobState State, FailureReason Reason, string Message);
+/// <param name="PasswordProven">True only when the file genuinely required a password and
+/// the supplied one opened it. A permissions-only PDF decrypts whatever password is
+/// supplied, so its success is no evidence that the password is right.</param>
+public sealed record DecryptOutcome(
+    JobState State, FailureReason Reason, string Message, bool PasswordProven = false);
 
 /// <summary>
 /// Drives qpdf for a single job. Exit codes below were confirmed against qpdf 12:
@@ -31,6 +35,8 @@ public sealed class QpdfDecryptor(QpdfInstallation installation)
         {
             var probe = await ProcessRunner.RunAsync(
                 installation.ExecutablePath, ["--requires-password", inputPath], null, cancellationToken);
+
+            var passwordWasRequired = probe.ExitCode == 0;
 
             switch (probe.ExitCode)
             {
@@ -58,7 +64,8 @@ public sealed class QpdfDecryptor(QpdfInstallation installation)
             // qpdf uses 3 for "succeeded with warnings", and still writes valid output.
             if (result.ExitCode is 0 or 3)
                 return new DecryptOutcome(JobState.Decrypted, FailureReason.None,
-                    result.ExitCode == 3 ? "Decrypted, with warnings from qpdf." : "Decrypted.");
+                    result.ExitCode == 3 ? "Decrypted, with warnings from qpdf." : "Decrypted.",
+                    PasswordProven: passwordWasRequired && !string.IsNullOrEmpty(password));
 
             if (result.AllOutput.Contains("invalid password", StringComparison.OrdinalIgnoreCase))
                 return new DecryptOutcome(JobState.Failed, FailureReason.WrongPassword,

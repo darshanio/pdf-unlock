@@ -43,8 +43,9 @@ Passwords are handed to qpdf over standard input, never as command-line argument
 process arguments are readable by any other process on both macOS and Windows, and
 your bank statement password has no business showing up in `ps` output.
 
-Nothing is written to disk today. When the planned password store lands, secrets will
-live in the macOS Keychain or Windows Credential Manager, never in a plain config file.
+Saved passwords — an opt-in feature — live in the macOS Keychain or Windows Credential
+Manager, never in a config file. The settings file holds folder *names* and nothing
+secret. Passwords reach both qpdf and the keychain over standard input.
 
 ## Requirements
 
@@ -120,10 +121,10 @@ Working and verified against real encrypted PDFs:
 - [x] Correct rendering in both light and dark system themes
 
 - [x] Settings, persisted, with the qpdf status panel
+- [x] Saved per-folder passwords, held in the OS keychain
 
 Not built yet — one spec each in [`docs/features/`](docs/features):
 
-- [ ] Saved per-folder passwords, in the OS keychain
 - [ ] Dependency licences screen
 - [ ] Bundled qpdf binaries
 - [ ] Installers, and context-menu integration on both platforms
